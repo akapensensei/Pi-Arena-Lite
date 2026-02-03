@@ -1,0 +1,8 @@
+flask==3.0.0
+flask-socketio==5.3.6
+pygame==2.5.2
+requests==2.31.0
+pylogix==0.8.8
+netmiko==4.3.0
+rpi-ws281x==5.0.0
+eventlet==0.33.3
