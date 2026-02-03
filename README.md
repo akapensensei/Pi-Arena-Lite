@@ -9,8 +9,8 @@ It is designed to be a set of "Plug-and-Play" appliances for practice fields.
 ## 📂 File Directory & Purpose
 
 ### 🧠 Core Logic (The Brains)
-*   **`fms_core.py`**: Runs ONLY on **Node 1 (Intel PC or Raspberry Pi)**. It manages the 160-second match clock, handles the SQLite database, and plays the official audio cues.
-*   **`frc2026_node.py`**: Runs on **Nodes 2, 3, and 4**. It handles the physical world: reading sensors, pulsing LEDs, and reporting scores back to Node 1.
+*   **`piarena_fms.py`**: Runs ONLY on **Node 1 (Intel PC or Raspberry Pi)**. It manages the 160-second match clock, handles the SQLite database, and plays the official audio cues.
+*   **`piarena_node.py`**: Runs on **Nodes 2, 3, and 4**. It handles the physical world: reading sensors, pulsing LEDs, and reporting scores back to Node 1.
 
 ### ⚙️ Configuration (The Settings)
 *   **`config.json`**: The "Identity Card." You edit this on each node to tell the software if it is a Red Hub, Blue, Hub, Blue Master, etc.
