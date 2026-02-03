@@ -15,128 +15,76 @@
 #    contributors may be used to endorse or promote products derived from
 #    this software without specific prior written permission.
 
-import time
-import json
-import requests
-import threading
-import os
+
+import time, json, requests, threading, os, pygame
 from RPi import GPIO
 from rpi_ws281x import PixelStrip, Color
+import socketio as sio_client
 
-class FieldNode:
+class PiArenaNode:
     def __init__(self, config_path="config.json"):
-        # Load Appliance Identity
         with open(config_path) as f:
             self.cfg = json.load(f)
         
-        self.node_id = self.cfg['node_id']
-        self.role = self.cfg['role']
-        self.alliance = self.cfg['alliance']
         self.master_url = f"http://{self.cfg['master_ip']}:8080"
-        
-        # Scoring State
         self.is_active = False
         self.deactivation_time = 0
-        self.current_period = "PRE_MATCH"
-        self.sensor_states = [False] * 4
-        
-        # Reliability Settings
-        self.rel = self.cfg.get('reliability_settings', {})
         self.last_contact = time.time()
-        self.wd_handle = None
+        self.sio = sio_client.Client()
 
-        if self.role == "HUB":
-            self.setup_hardware()
-        
-        if self.rel.get('hardware_watchdog', True):
-            self.start_watchdog()
+        # Audio Setup (Node 1 and Node 4)
+        if self.cfg['role'] in ["MASTER", "DRIVER_STATION"]:
+            pygame.mixer.init()
+            self.setup_audio_sync()
 
-    def setup_hardware(self):
-        # 1. LED Strip Setup (WS2812B)
-        # GPIO 18 (PWM0) used for data
+        # Hub Setup (Nodes 2 & 3)
+        if self.cfg['role'] == "HUB":
+            self.setup_hub()
+
+        if self.cfg.get('reliability_settings', {}).get('hardware_watchdog'):
+            self.wd = os.open("/dev/watchdog", os.O_WRONLY)
+
+    def setup_audio_sync(self):
+        @self.sio.on('play_sound')
+        def on_play_sound(data):
+            try: pygame.mixer.Sound(f"sounds/{data['file']}.wav").play()
+            except: pass
+        try: self.sio.connect(self.master_url)
+        except: print("FMS Audio Sync Offline")
+
+    def setup_hub(self):
         self.strip = PixelStrip(60, self.cfg['led_pin'], 800000, 10, False, 255, 0)
         self.strip.begin()
-        self.color = Color(255, 0, 0) if self.alliance == "RED" else Color(0, 0, 255)
-
-        # 2. Sensor Setup (12V Proximity via Optocoupler)
+        self.color = Color(255,0,0) if self.cfg['alliance']=="RED" else Color(0,0,255)
         GPIO.setmode(GPIO.BCM)
         for i, pin in enumerate(self.cfg['sensor_pins']):
-            # PUD_UP assumes optocoupler pulls to GND when ball detected
             GPIO.setup(pin, GPIO.IN, pull_up_down=GPIO.PUD_UP)
-            GPIO.add_event_detect(pin, GPIO.FALLING, 
-                                  callback=lambda ch, idx=i: self.on_fuel_break(idx), 
-                                  bouncetime=150)
+            GPIO.add_event_detect(pin, GPIO.FALLING, callback=lambda x, idx=i: self.on_fuel(idx), bouncetime=150)
 
-    def start_watchdog(self):
-        try:
-            self.wd_handle = os.open("/dev/watchdog", os.O_WRONLY)
-        except Exception as e:
-            print(f"Watchdog error: {e}")
-
-    def on_fuel_break(self, sensor_index):
-        """Rule: Count if Hub is Active OR within 3s Buffer."""
+    def on_fuel(self, idx):
         now = time.time()
-        scored = False
-        
-        # Logic for "In-Flight" scoring buffer
-        if self.is_active or (now - self.deactivation_time < self.cfg['scoring_buffer']):
-            scored = True
-            pts = 2 if self.current_period == "AUTO" else 1
-            self.report_score(1, pts)
+        # 3s Scoring Buffer Rule
+        if self.is_active or (now - self.deactivation_time < 3.0):
+            self.report(1, 1) # Simplified: Master handles multipliers
         else:
-            self.report_score(1, 0) # Ball counted, 0 points
+            self.report(1, 0)
 
-    def report_score(self, balls, pts):
-        try:
-            requests.post(f"{self.master_url}/api/score", 
-                          json={"alliance": self.alliance, "balls": balls, "pts": pts},
-                          timeout=0.5)
-        except:
-            pass
+    def report(self, balls, pts):
+        try: requests.post(f"{self.master_url}/api/score", json={"alliance": self.cfg['alliance'], "balls": balls, "pts": pts}, timeout=0.2)
+        except: pass
 
-    def sync_with_fms(self):
-        """Polls Node 1 for match state and sends health heartbeat."""
+    def heartbeat_loop(self):
         while True:
             try:
-                # Get Match State
-                r = requests.get(f"{self.master_url}/api/status", timeout=1)
-                if r.status_code == 200:
-                    data = r.json()
-                    self.current_period = data['period']
-                    # logic to determine if this hub should be active
-                    # (In production, the Master sends Hub state directly)
-                    self.last_contact = time.time()
-
-                # Send Health Heartbeat (Sensors status for Pit Display)
-                requests.post(f"{self.master_url}/api/heartbeat",
-                             json={"node_id": self.node_id, "sensors": self.sensor_states},
-                             timeout=1)
+                requests.post(f"{self.master_url}/api/heartbeat", json={"node_id": self.cfg['node_id']}, timeout=1)
+                self.last_contact = time.time()
             except:
-                if self.rel.get('reboot_on_network_loss') and (time.time() - self.last_contact > self.rel.get('network_timeout_seconds', 60)):
-                    os.system('sudo reboot')
-            
-            # Pat the Hardware Watchdog
-            if self.wd_handle:
-                os.write(self.wd_handle, b'1')
-            
-            time.sleep(self.rel.get('heartbeat_interval', 5))
-
-    def led_animator(self):
-        """Handles 2026 Shift visuals and the 3s pulsing warning."""
-        while True:
-            if not self.is_active:
-                for i in range(60): self.strip.setPixelColor(i, Color(0,0,0))
-            else:
-                # Check for pulsing (add pulsing logic here based on timer)
-                for i in range(60): self.strip.setPixelColor(i, self.color)
-            self.strip.show()
-            time.sleep(0.05)
+                if self.cfg['reliability_settings']['reboot_on_network_loss']:
+                    if time.time() - self.last_contact > 60: os.system('sudo reboot')
+            if hasattr(self, 'wd'): os.write(self.wd, b'1')
+            time.sleep(5)
 
 if __name__ == "__main__":
-    node = FieldNode()
-    if node.role == "HUB":
-        threading.Thread(target=node.led_animator, daemon=True).start()
-    node.sync_with_fms()
-
-
-
+    node = PiArenaNode()
+    threading.Thread(target=node.heartbeat_loop, daemon=True).start()
+    while True: time.sleep(1)
