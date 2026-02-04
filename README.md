@@ -53,6 +53,6 @@ Modified BSD 3-Clause License. Portions Copyright (c) Team 254.
 Designed for the **FIRST Robotics Competition 2026: REBUILT presented by Haas**.
 
 ## 🛠️ Built With
-- **Original Foundation**: Cheesy Arena Lite by [Team 254](https://github.com).
+- **Original Foundation**: Cheesy Arena Lite by [Team 254](https://github.com/Team254/cheesy-arena-lite).
 - **Enhancement**: Team 3476 (Code Orange)
 - **Assistance**: This Python port and modular appliance logic were developed with assistance from **Google Gemini**.
