@@ -1,24 +1,17 @@
 {
-  "node_id": 1,
-  "role": "MASTER",
-  "alliance": "RED",
-  "master_ip": "10.0.100.5",
-  "hub_ips": {
-    "RED": "10.0.100.12",
-    "BLUE": "10.0.100.13"
+  "switch_type": "generic_linux",
+  "switch_ip": "10.0.100.2",
+  "switch_vendor": "cisco_ios",
+  "username": "admin",
+  "password": "password123",
+  "optional_features": {
+    "network_mode": "FLAT",
+    "robot_radio_control": true,
+    "use_match_schedule": true
   },
-  "led_pin": 18,
-  "sensor_pins": [17, 27, 22, 23],
-  "scoring_buffer": 3.0,
-  "reliability_settings": {
-    "hardware_watchdog": true,
-    "reboot_on_network_loss": true,
-    "network_timeout_seconds": 60,
-    "heartbeat_interval": 5
-  }
+  "scoring_source": "PI_NODES",
+  "plc_ip": "10.0.100.50"
 }
-
-
 
 
 
