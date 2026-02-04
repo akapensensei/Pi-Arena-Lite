@@ -16,7 +16,7 @@ echo "==============================================="
 # 1. Start the Master FMS (Node 1)
 echo "[1/3] Launching FMS Core on Node 1..."
 # We run this in the background so the script can continue
-nohup python3 fms_core.py > fms.log 2>&1 &
+nohup python3 piarena_fms.py > fms.log 2>&1 &
 sleep 2
 
 # 2. Start the Satellite Nodes (2, 3, and 4)
@@ -26,9 +26,9 @@ do
     echo "  --> Poking Node at $IP..."
     # This command connects via SSH, kills any old versions, and starts the new one
     ssh -o ConnectTimeout=5 $USER@$IP "
-        sudo pkill -f frc2026_node.py;
+        sudo pkill -f piarena_node.py;
         cd $REMOTE_DIR;
-        nohup python3 frc2026_node.py > node.log 2>&1 &
+        nohup python3 piarena_node.py > node.log 2>&1 &
     " &
 done
 
