@@ -1,5 +1,5 @@
 # Pi-Arena-Lite
-Modular FRC Practice Field Management System
+Modular FRC (First Robotic Competition) FMS (Field Management System)
 
 This software turns a collection of Raspberry Pis and/or PCs into a professional Field Management System. 
 It is designed to be a set of "Plug-and-Play" appliances for practice fields. 
