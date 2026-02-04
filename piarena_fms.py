@@ -1,7 +1,8 @@
 # Pi Arena Lite - Modular FRC FMS
-
+#
 # Part of: Pi Arena Lite - Modular FRC Practice Field Management System
 # Copyright (c) 2026, Team 3476 (Code Orange)
+# Developed with assistance from Google Gemini.
 # Portions Copyright (c) Team 254 (Cheesy Arena Lite)
 # All rights reserved.
 #
@@ -16,7 +17,6 @@
 # 3. Neither the name of the copyright holder nor the names of its
 #    contributors may be used to endorse or promote products derived from
 #    this software without specific prior written permission.
-
 
 import time, json, threading, sqlite3, pygame, csv, io, os
 from flask import Flask, render_template, jsonify, request, send_file
@@ -48,9 +48,9 @@ class PiArenaFMS:
                          "node3": {"online": False, "sensors": [False]*4},
                          "node4": {"online": False}}
         
-        pygame.mixer.init()
         self.db_name = "rebuilt_2026.db"
         self.init_db()
+        pygame.mixer.init()
 
     def init_db(self):
         with sqlite3.connect(self.db_name) as conn:
@@ -67,7 +67,6 @@ class PiArenaFMS:
 
     def broadcast(self):
         m, s = divmod(max(0, self.time_left), 60)
-        # Calculate public score (Fuel + Move Bonus)
         red_move = sum([self.move_bonus[k] for k in ['r1','r2','r3']]) * 3
         blue_move = sum([self.move_bonus[k] for k in ['b1','b2','b3']]) * 3
         
@@ -81,12 +80,40 @@ class PiArenaFMS:
 
 fms = PiArenaFMS()
 
-@socketio.on('update_move_bonus')
-def handle_move_bonus(data):
-    if fms.match_state == "AUTO":
-        if 'reset' in data: fms.move_bonus = {k: 0 for k in fms.move_bonus}
-        else: fms.move_bonus[data['pos']] = 1 # Latch
-        fms.broadcast()
+@app.route('/')
+def index(): return render_template('audience.html')
+
+@app.route('/pit')
+def pit(): return render_template('pit.html')
+
+@app.route('/api/score', methods=['POST'])
+def update_score():
+    data = request.json
+    fms.scores[data['alliance']]['balls'] += data.get('balls', 0)
+    fms.scores[data['alliance']]['pts'] += data.get('pts', 0)
+    return jsonify({"status": "ok"})
+
+@app.route('/api/heartbeat', methods=['POST'])
+def heartbeat():
+    data = request.json
+    node = f"node{data.get('node_id')}"
+    if node in fms.hub_data:
+        fms.hub_data[node]['online'] = True
+        if 'sensors' in data: fms.hub_data[node]['sensors'] = data['sensors']
+    return jsonify({"status": "ok"})
+
+@app.route('/api/export/csv')
+def export_csv():
+    conn = sqlite3.connect(fms.db_name)
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM matches")
+    rows = cursor.fetchall()
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow(['ID', 'Match', 'R1', 'R2', 'R3', 'B1', 'B2', 'B3', 'R1m', 'R2m', 'R3m', 'B1m', 'B2m', 'B3m', 'RedFinal', 'BlueFinal', 'Time'])
+    writer.writerows(rows)
+    output.seek(0)
+    return send_file(io.BytesIO(output.getvalue().encode()), mimetype='text/csv', as_attachment=True, download_name="PiArena_Scouting.csv")
 
 if __name__ == "__main__":
     socketio.run(app, host='0.0.0.0', port=8080)
