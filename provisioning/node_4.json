@@ -1,0 +1,12 @@
+{
+  "node_id": 4,
+  "role": "DRIVER_STATION",
+  "alliance": "BLUE",
+  "master_ip": "10.0.100.5",
+  "reliability_settings": {
+    "hardware_watchdog": false,
+    "reboot_on_network_loss": true,
+    "network_timeout_seconds": 60,
+    "heartbeat_interval": 5
+  }
+}
