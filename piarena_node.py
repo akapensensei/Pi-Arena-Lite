@@ -1,7 +1,8 @@
 # Pi Arena Lite - Modular Field Node
-
+#
 # Part of: Pi Arena Lite - Modular FRC Practice Field Management System
 # Copyright (c) 2026, Team 3476 (Code Orange)
+# Developed with assistance from Google Gemini.
 # Portions Copyright (c) Team 254 (Cheesy Arena Lite)
 # All rights reserved.
 #
@@ -16,10 +17,6 @@
 # 3. Neither the name of the copyright holder nor the names of its
 #    contributors may be used to endorse or promote products derived from
 #    this software without specific prior written permission.
-
-
-
-# Pushed and Provisioned by Node 1
 
 import time, json, requests, threading, os, pygame
 from RPi import GPIO
@@ -37,6 +34,10 @@ class PiArenaNode:
         self.last_contact = time.time()
         self.sio = sio_client.Client()
 
+        if self.cfg['role'] in ["MASTER", "DRIVER_STATION"]:
+            pygame.mixer.init()
+            self.setup_audio_sync()
+
         if self.cfg['role'] == "HUB":
             self.setup_hub()
         
@@ -44,8 +45,15 @@ class PiArenaNode:
             try: self.wd = os.open("/dev/watchdog", os.O_WRONLY)
             except: print("Watchdog hardware not found")
 
+    def setup_audio_sync(self):
+        @self.sio.on('play_sound')
+        def on_play_sound(data):
+            try: pygame.mixer.Sound(f"sounds/{data['file']}.wav").play()
+            except: pass
+        try: self.sio.connect(self.master_url)
+        except: pass
+
     def setup_hub(self):
-        # 60 LED Strip on GPIO 18
         self.strip = PixelStrip(60, self.cfg.get('led_pin', 18), 800000, 10, False, 255, 0)
         self.strip.begin()
         self.color = Color(255,0,0) if self.cfg['alliance']=="RED" else Color(0,0,255)
@@ -56,7 +64,6 @@ class PiArenaNode:
             GPIO.add_event_detect(pin, GPIO.FALLING, callback=lambda x, idx=i: self.on_fuel(idx), bouncetime=150)
 
     def on_fuel(self, idx):
-        # 3s Scoring Buffer implementation
         if self.is_active or (time.time() - self.deactivation_time < 3.0):
             self.report_score(1, 1)
         else:
@@ -69,7 +76,6 @@ class PiArenaNode:
 
 if __name__ == "__main__":
     node = PiArenaNode()
-    # Continuous loop for heartbeat and watchdog
     while True:
         try:
             requests.post(f"{node.master_url}/api/heartbeat", json={"node_id": node.cfg['node_id']}, timeout=1)
