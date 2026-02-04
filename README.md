@@ -6,7 +6,7 @@ It is designed to be a set of "Plug-and-Play" appliances for practice fields.
 
 *** Warning ***
 This software package is in a very early alpha stage. It is going through internal testing. 
-A wise person would stay away until this software is tested. Once we complete that, we will remove this warning.
+A wise person would stay away until this software is thoroughly tested. Once we complete that, we will remove this warning.
 
 ---
 
