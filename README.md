@@ -17,7 +17,7 @@ A wise person would stay away until this software is thoroughly tested. Once we 
 *   **`piarena_node.py`**: Runs on **Nodes 2, 3, and 4**. It handles the physical world: reading sensors, pulsing LEDs, and reporting scores back to Node 1.
 
 ### ⚙️ Configuration (The Settings)
-*   **`config.json`**: The "Identity Card." You edit this on each node to tell the software if it is a Red Hub, Blue, Hub, Blue Master, etc.
+*   **`config.json`**: The "Identity Card." You edit this on each node to tell the software if it is a Red Hub, Blue Hub, Blue Master, etc.
 *   **`network_config.json`**: Tells the system how to talk to your network switch and whether you are using a PLC or Pi Nodes for scoring/LED control.
 
 ### 🌐 Web Interfaces (The Displays)
