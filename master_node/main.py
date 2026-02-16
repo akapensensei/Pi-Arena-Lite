@@ -12,65 +12,117 @@ Copyright & Attribution:
 import time
 import threading
 from common.constants import *
+from common.network_utils import ArenaNetwork
+from master_node.ui_display import ScoringUI
+from master_node.audio_controller import GameAudio
 
-class MatchController:
+class PiArenaLiteMaster:
     def __init__(self):
-        self.state = "IDLE"
+        # Initialize Core Modules
+        self.ui = ScoringUI()
+        self.audio = GameAudio()
+        self.net = ArenaNetwork(node_role="MASTER_PRIMARY")
+        
+        # Match State Variables
+        self.match_active = False
         self.red_score = 0
         self.blue_score = 0
-        self.match_thread = None
-        self.is_running = False
+        self.time_remaining = 0
+        self.current_phase = "IDLE"
 
-    def toggle_match(self):
-        """Triggered by the USB Panic Button."""
-        if not self.is_running:
+        # Start Networking Listener (for scores from Hubs)
+        self.net.listen(self.handle_incoming_packets)
+
+        # Bind the USB Panic Button (Enter Key) to the trigger
+        self.ui.root.bind("<Return>", lambda e: self.trigger_button_press())
+        
+        print("Pi Arena Lite: System Ready. Press USB Button to start.")
+
+    def handle_incoming_packets(self, data, addr):
+        """Processes score updates from Node 2 and 3 Hubs."""
+        if data.get("type") == "SCORE_INC" and self.match_active:
+            points = data.get("points", 0)
+            # Apply 2x Multiplier if in Autonomous
+            if self.current_phase == "AUTO":
+                points *= 2
+                
+            if data.get("alliance") == "RED":
+                self.red_score += points
+            else:
+                self.blue_score += points
+
+    def trigger_button_press(self):
+        """Logic for the USB Panic Button."""
+        if not self.match_active:
             self.start_match()
         else:
-            self.stop_match()
+            self.abort_match()
 
     def start_match(self):
-        print("\n[MATCH START] Initializing 2026 REBUILT Cycle...")
-        self.is_running = True
-        self.match_thread = threading.Thread(target=self.game_loop)
-        self.match_thread.start()
+        self.match_active = True
+        self.red_score = 0
+        self.blue_score = 0
+        threading.Thread(target=self.run_match_sequence, daemon=True).start()
 
-    def stop_match(self):
-        print("\n[EMERGENCY STOP] Game halted by Master Button.")
-        self.is_running = False
-        self.state = "IDLE"
+    def abort_match(self):
+        self.match_active = False
+        self.audio.stop_all()
+        self.audio.play("abort")
+        self.current_phase = "ABORTED"
+        print("[PANIC] Match Aborted and Reset.")
 
-    def game_loop(self):
-        # 1. AUTONOMOUS
-        self.state = "AUTO"
-        print(f"--- STARTING AUTONOMOUS ({AUTO_DURATION}s) ---")
-        time.sleep(AUTO_DURATION)
+    def run_match_sequence(self):
+        """The 2026 REBUILT Match Timing Sequence."""
         
-        if not self.is_running: return
+        # 1. AUTONOMOUS (15s)
+        self.current_phase = "AUTO"
+        self.audio.play("match_start")
+        self.countdown(AUTO_DURATION)
+        if not self.match_active: return
 
-        # 2. TRANSITION
-        self.state = "PAUSE"
-        print(f"--- TRANSITION / GAME DATA ({TRANSITION_DURATION}s) ---")
-        time.sleep(TRANSITION_DURATION)
+        # 2. TRANSITION (10s)
+        self.current_phase = "PAUSE"
+        self.audio.play("auto_end")
+        self.countdown(TRANSITION_DURATION)
+        if not self.match_active: return
 
-        if not self.is_running: return
+        # 3. TELEOP (135s Total)
+        self.current_phase = "TELEOP"
+        self.audio.play("teleop_start")
+        
+        # Teleop until Endgame
+        teleop_main_time = TELEOP_DURATION - ENDGAME_START
+        self.countdown(teleop_main_time)
+        if not self.match_active: return
 
-        # 3. TELEOP
-        self.state = "TELEOP"
-        print(f"--- STARTING TELEOP ({TELEOP_DURATION}s) ---")
-        # In a full build, logic for 25s Hub Shifts goes here
-        time.sleep(TELEOP_DURATION)
+        # 4. ENDGAME (30s)
+        self.current_phase = "ENDGAME"
+        self.audio.play("endgame")
+        self.countdown(ENDGAME_START)
+        if not self.match_active: return
 
-        self.is_running = False
-        self.state = "IDLE"
-        print("--- MATCH COMPLETE ---")
+        # 5. MATCH COMPLETE
+        self.audio.play("match_end")
+        self.current_phase = "POST-MATCH"
+        self.match_active = False
 
-# Setup for USB Button Listening
+    def countdown(self, seconds):
+        """Standard timer loop that updates the UI every second."""
+        self.time_remaining = seconds
+        while self.time_remaining > 0 and self.match_active:
+            self.ui.update_display(
+                self.time_remaining, 
+                self.current_phase, 
+                self.red_score, 
+                self.blue_score
+            )
+            time.sleep(1)
+            self.time_remaining -= 1
+
+    def run(self):
+        """Keep the UI alive on the main thread."""
+        self.ui.run()
+
 if __name__ == "__main__":
-    controller = MatchController()
-    print("PI ARENA LITE: Ready. Press 'Enter' (USB Button) to Start.")
-    try:
-        while True:
-            input() # Mimics the USB Button Press
-            controller.toggle_match()
-    except KeyboardInterrupt:
-        print("\nShutting down Master Node.")
+    app = PiArenaLiteMaster()
+    app.run()
