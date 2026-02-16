@@ -36,3 +36,4 @@ Masters require the Desktop to load before the UI can render.
    ```bash
    chmod +x setup/setup_master.sh
    ./setup/setup_master.sh
+
