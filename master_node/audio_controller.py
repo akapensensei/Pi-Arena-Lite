@@ -14,19 +14,40 @@ import os
 
 class GameAudio:
     def __init__(self):
+        # Initialize the mixer for USB Audio Output
         pygame.mixer.init()
-        # Paths to your assets
+        
+        # Audio File Mapping per 2026 Game Manual Table 5-4
+        # Note: 'Buzzer' is often the same file, played for different durations
         self.sounds = {
-            "start": "assets/match_start.wav",
-            "teleop": "assets/teleop_start.wav",
-            "endgame": "assets/endgame_alarm.wav",
-            "stop": "assets/match_stop.wav"
+            "match_start": "assets/match_start.wav",   # Auto Start: Buzzer
+            "auto_end": "assets/match_stop.wav",      # Auto End: Buzzer
+            "teleop_start": "assets/teleop_start.wav",# Teleop Start: Bell
+            "endgame": "assets/endgame_alarm.wav",    # T-30 Seconds: Alarm
+            "match_end": "assets/match_stop.wav",     # Match End: Long Buzzer
+            "abort": "assets/foghorn.wav"             # Match Abort: Foghorn (FMS Standard)
         }
 
     def play(self, sound_key):
-        if sound_key in self.sounds and os.path.exists(self.sounds[sound_key]):
-            pygame.mixer.Sound(self.sounds[sound_key]).play()
+        """Plays the mapped sound if the asset exists."""
+        if sound_key in self.sounds:
+            file_path = self.sounds[sound_key]
+            if os.path.exists(file_path):
+                print(f"[AUDIO] Playing: {sound_key}")
+                pygame.mixer.Sound(file_path).play()
+            else:
+                print(f"[ERROR] Audio asset missing at {file_path}")
         else:
-            print(f"Audio file for {sound_key} missing.")
+            print(f"[ERROR] Sound key '{sound_key}' not defined in Table 5-4.")
 
-# Example: audio = GameAudio(); audio.play("start")
+    def stop_all(self):
+        """Immediately silences all audio (used during Panic Button reset)."""
+        pygame.mixer.stop()
+        print("[AUDIO] All sounds silenced.")
+
+# Testing block for the Master Node
+if __name__ == "__main__":
+    audio = GameAudio()
+    print("Testing Match Start Audio...")
+    audio.play("match_start")
+
