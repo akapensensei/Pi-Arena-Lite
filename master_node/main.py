@@ -1,52 +1,117 @@
-#!/bin/bash
-# Pi Arena Lite - Installation Script for Raspberry Pi 5
-# Distributed Practice Field Controller for FRC 2026: REBUILT™
+"""
+Pi Arena Lite - master_node/main.py (Final Production Version)
+Distributed Practice Field Controller for FRC 2026: REBUILT™
 
-echo "-------------------------------------------------------"
-echo "Initializing Pi Arena Lite Setup..."
-echo "Credits: Team 254 (Logic), Team 3476 (Inspiration)"
-echo "-------------------------------------------------------"
+Copyright & Attribution:
+- Core Match Logic: Derived from Cheesy Arena by Team 254 (The Cheesy Poofs).
+- Technical Inspiration: Influence from Team 3476 (Code Orange).
+- Game Rules: Based on official FIRST® REBUILT™ 2026 documentation.
+- Implementation: Developed with assistance from Google Gemini.
+"""
 
-# 1. Update System Repositories
-echo "[1/4] Updating system packages..."
-sudo apt-get update && sudo apt-get upgrade -y
+import os
+import sys
+import time
+import threading
+from common.constants import *
+from common.network_utils import ArenaNetwork
+from common.logger import MatchLogger
+from master_node.ui_display import ScoringUI
+from master_node.audio_controller import GameAudio
 
-# 2. Install System-Level Dependencies
-# python3-tk: For the master_node UI
-# alsa-utils: For USB speaker management
-# libsdl2-mixer-2.0-0: Required by pygame for match audio
-echo "[2/4] Installing system dependencies..."
-sudo apt-get install -y \
-    python3-pip \
-    python3-setuptools \
-    python3-tk \
-    alsa-utils \
-    libsdl2-mixer-2.0-0 \
-    git
+class PiArenaLiteMaster:
+    def __init__(self):
+        if not self.verify_system_integrity():
+            sys.exit(1)
 
-# 3. Install Python Libraries
-# rpi-ws281x: For Node 2/3 Hub LEDs
-# gpiozero: For Hub Break-Beams and Master Node interrupts
-# pygame: For official Table 5-4 audio cues
-echo "[3/4] Installing Python modules..."
-sudo pip3 install rpi-ws281x gpiozero pygame --break-system-packages
+        self.ui = ScoringUI()
+        self.audio = GameAudio()
+        self.logger = MatchLogger()
+        self.net = ArenaNetwork(node_role="MASTER_PRIMARY")
+        
+        self.match_active = False
+        self.red_score = 0
+        self.blue_score = 0
+        self.current_phase = "IDLE"
 
-# 4. Hardware Configuration for LEDs (PWM Fix)
-# The Pi 5 uses the same PWM timer for onboard audio and GPIO 18.
-# Since you are using USB Speakers, we disable onboard audio to prevent LED flickering.
-echo "[4/4] Configuring hardware for LED PWM (GPIO 18)..."
-if ! grep -q "dtparam=audio=off" /boot/config.txt; then
-    echo "dtparam=audio=off" | sudo tee -a /boot/config.txt
-    echo "SUCCESS: Onboard audio disabled. LED PWM enabled."
-else
-    echo "SKIP: PWM audio conflict already resolved in /boot/config.txt."
-fi
+        self.net.listen(self.handle_incoming_packets)
+        self.ui.root.bind("<Return>", lambda e: self.trigger_button_press())
+        
+        print("\n[READY] Pi Arena Lite Final Build Operational.")
 
-# Create Assets directory if it doesn't exist
-mkdir -p ../assets
+    def verify_system_integrity(self):
+        base_path = os.getcwd()
+        for d in ['common', 'master_node', 'assets', 'hub_node']:
+            if not os.path.isdir(os.path.join(base_path, d)):
+                return False
+        return True
 
-echo "-------------------------------------------------------"
-echo "SETUP COMPLETE!"
-echo "1. Place your sound files in the /assets/ folder."
-echo "2. Please REBOOT your Pi 5 now to apply PWM changes."
-echo "-------------------------------------------------------"
+    def handle_incoming_packets(self, data, addr):
+        if data.get("type") == "SCORE_INC" and self.match_active:
+            points = data.get("points", 0)
+            if self.current_phase == "AUTO": points *= 2
+            
+            if data.get("alliance") == "RED":
+                self.red_score += points
+            else:
+                self.blue_score += points
+
+    def trigger_button_press(self):
+        if not self.match_active:
+            self.start_match()
+        else:
+            self.abort_match()
+
+    def start_match(self):
+        self.match_active = True
+        self.red_score = 0
+        self.blue_score = 0
+        threading.Thread(target=self.run_match_sequence, daemon=True).start()
+
+    def abort_match(self):
+        self.match_active = False
+        self.audio.stop_all()
+        self.audio.play("abort")
+        self.logger.log_match(self.current_phase, self.red_score, self.blue_score, "ABORTED")
+        self.current_phase = "ABORTED"
+
+    def run_match_sequence(self):
+        # 1. AUTO
+        self.current_phase = "AUTO"; self.audio.play("match_start")
+        self.countdown(AUTO_DURATION)
+        if not self.match_active: return
+
+        # 2. PAUSE
+        self.current_phase = "PAUSE"; self.audio.play("auto_end")
+        self.countdown(TRANSITION_DURATION)
+        if not self.match_active: return
+
+        # 3. TELEOP
+        self.current_phase = "TELEOP"; self.audio.play("teleop_start")
+        self.countdown(TELEOP_DURATION - ENDGAME_START)
+        if not self.match_active: return
+
+        # 4. ENDGAME
+        self.current_phase = "ENDGAME"; self.audio.play("endgame")
+        self.countdown(ENDGAME_START)
+        if not self.match_active: return
+
+        # 5. FINISH
+        self.audio.play("match_end")
+        self.logger.log_match("FINAL", self.red_score, self.blue_score, "COMPLETED")
+        self.match_active = False
+        self.current_phase = "POST-MATCH"
+
+    def countdown(self, seconds):
+        self.time_remaining = seconds
+        while self.time_remaining > 0 and self.match_active:
+            self.ui.update_display(self.time_remaining, self.current_phase, self.red_score, self.blue_score)
+            time.sleep(1)
+            self.time_remaining -= 1
+
+    def run(self):
+        self.ui.run()
+
+if __name__ == "__main__":
+    app = PiArenaLiteMaster()
+    app.run()
