@@ -1,0 +1,76 @@
+"""
+Pi Arena Lite - hub_node/main.py
+Distributed Practice Field Controller for FRC 2026: REBUILT™
+
+Copyright & Attribution:
+- Core Match Logic: Derived from Cheesy Arena by Team 254 (The Cheesy Poofs).
+- Technical Inspiration: Influence from Team 3476 (Code Orange).
+- Game Rules: Based on official FIRST® REBUILT™ 2026 documentation.
+- Implementation: Developed with assistance from Google Gemini.
+"""
+
+import time
+import sys
+from common.network_utils import ArenaNetwork
+from common.constants import UDP_PORT
+from hub_node.sensors import FuelSensor
+from hub_node.leds import HubLights
+
+class PiArenaLiteHub:
+    def __init__(self, alliance="RED", master_ip="192.168.1.10"):
+        self.alliance = alliance
+        self.master_ip = master_ip
+        
+        # 1. Initialize Hardware
+        # Sensors on GPIO 17, 27, 22, 23
+        self.sensors = FuelSensor(pins=[17, 27, 22, 23], node_id=f"HUB_{alliance}")
+        self.lights = HubLights()
+        
+        # 2. Initialize Networking
+        self.net = ArenaNetwork(node_role=f"HUB_{alliance}")
+        
+        # Override the sensor's broadcast method to use our network
+        self.sensors.broadcast_score = self.send_score_to_master
+        
+        # 3. Start Listening for Match State Updates from Master
+        self.net.listen(self.handle_master_updates)
+        
+        print(f"[READY] {self.alliance} Hub Node Operational. Target Master: {self.master_ip}")
+        self.lights.game_state_update("IDLE")
+
+    def handle_master_updates(self, data, addr):
+        """Updates LEDs based on current Match Phase from Master."""
+        if data.get("type") == "STATE_UPDATE":
+            state = data.get("state")
+            # In Teleop, check if this alliance hub should be 'Active' per 2026 Shift Rules
+            # For simplicity in this build, we default to Active
+            is_active = True 
+            
+            print(f"[{self.alliance}] Syncing Phase: {state}")
+            self.lights.game_state_update(state, is_active=is_active)
+            
+            if state == "IDLE":
+                self.sensors.reset_score()
+
+    def send_score_to_master(self):
+        """Callback triggered by sensors.py when Fuel is detected."""
+        print(f"[{self.alliance}] Reporting Fuel to Master...")
+        self.net.send_score_update(self.alliance, 1, self.master_ip)
+
+    def run(self):
+        """Main loop to keep the process alive."""
+        try:
+            while True:
+                time.sleep(1)
+        except KeyboardInterrupt:
+            print(f"[{self.alliance}] Shutting down Hub Node.")
+            self.lights.set_color(0) # Turn off LEDs
+
+if __name__ == "__main__":
+    # In production, you can pass these via command line arguments
+    # Example: python3 -m hub_node.main RED 192.168.1.10
+    alliance_color = sys.argv[1] if len(sys.argv) > 1 else "RED"
+    master_node_ip = sys.argv[2] if len(sys.argv) > 2 else "192.168.1.10"
+    
+    hub = PiArenaLiteHub(alliance=alliance_color, master_ip=master_node_ip)
+    hub.run()
