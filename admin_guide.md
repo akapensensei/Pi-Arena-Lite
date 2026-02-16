@@ -32,10 +32,10 @@ Masters require the Desktop to load before the UI can render.
 1. Run `sudo raspi-config` -> **System Options** -> **Boot/Auto Login** -> **Desktop Autologin**.
 2. **Setup Command:**
 
-cat < ~/frc2026-practice-field/setup/setup_master.sh
+cat <<EOF > ~/frc2026-practice-field/setup/setup_master.sh
 #!/bin/bash
 mkdir -p /home/pi/.config/autostart
-cat < /home/pi/.config/autostart/piarena.desktop
+cat <<EOT > /home/pi/.config/autostart/piarena.desktop
 [Desktop Entry]
 Type=Application
 Name=Pi Arena Master
@@ -51,18 +51,20 @@ chmod +x ~/frc2026-practice-field/setup/setup_master.sh
 Hubs run as background services and do not require a login.
 1. **Setup Command:**
 
-cat < ~/frc2026-practice-field/setup/setup_hub.sh
+cat <<EOF > ~/frc2026-practice-field/setup/setup_hub.sh
 #!/bin/bash
-sudo bash -c 'cat < /etc/systemd/system/piarena-hub.service
+sudo bash -c 'cat <<EOT > /etc/systemd/system/piarena-hub.service
 [Unit]
 Description=Pi Arena Hub Controller
 After=network.target
+
 [Service]
 ExecStart=/usr/bin/python3 -u /home/pi/frc2026-practice-field/hub_node/main.py
 WorkingDirectory=/home/pi/frc2026-practice-field
 Restart=always
 RestartSec=5
 User=pi
+
 [Install]
 WantedBy=multi-user.target
 EOT'
@@ -72,6 +74,7 @@ sudo systemctl start piarena-hub.service
 EOF
 chmod +x ~/frc2026-practice-field/setup/setup_hub.sh
 ~/frc2026-practice-field/setup/setup_hub.sh
+
 ---
 
 ## 🛠️ 4. Hub Calibration & Maintenance
