@@ -1,0 +1,30 @@
+{
+  "project_name": "Pi Arena Lite",
+  "version": "1.0.0",
+  "nodes": {
+    "node_1": {
+      "role": "MASTER_PRIMARY",
+      "ip_address": "192.168.1.10",
+      "connection": "Ethernet/Wi-Fi Bridge"
+    },
+    "node_4": {
+      "role": "MASTER_SECONDARY",
+      "ip_address": "192.168.1.11",
+      "connection": "Ethernet"
+    },
+    "node_2": {
+      "role": "HUB_RED",
+      "ip_address": "192.168.1.12",
+      "connection": "Wi-Fi"
+    },
+    "node_3": {
+      "role": "HUB_BLUE",
+      "ip_address": "192.168.1.13",
+      "connection": "Wi-Fi"
+    }
+  },
+  "settings": {
+    "debug_mode": true,
+    "play_sounds": true
+  }
+}
