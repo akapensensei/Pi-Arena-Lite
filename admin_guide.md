@@ -50,50 +50,45 @@ Hubs run as background services and do not require a login.
    ```
 ---
 
+---
 
+## 🛠️ 4. Practice Modes (Split-Field Logic)
+Pi Arena Lite v1.1 allows for focused debugging by "silencing" half the field. This is ideal for sessions where teams are sharing a field but working on independent tasks.
 
-
-
-
-
-
-
-
-
-   
-## 🛠️ 4. Hub Calibration & Rules (Manual Maintenance)
-Use these visual cues and rules to ensure the Hubs are match-ready, as the Hubs are headless.
-
-### **A. The "Clear Hub" Rule**
-*   **Rule:** Ensure no **FUEL** (balls) are blocking the break-beam sensors when powering on the Hubs.
-*   **Reason:** Sensors calibrate their "empty" state at boot. A blocked beam during startup can "zero out" the sensor, causing it to ignore scored FUEL during the match.
-
-### **B. LED Status Codes (Table 5-3 Adapted)**
-*   **Solid Alliance Color:** HUB is active and ready for scoring.
-*   **Pulsing Alliance Color:** Hub deactivation warning (starts 3s before shift change).
-*   **Dim Alliance Color:** HUB is currently inactive (scoring disabled).
-*   **Solid Green:** FIELD is safe/Idle.
+*   **FULL MODE:** Standard FRC Match rules. All nodes participate.
+*   **RED MODE:** Only Node 1 (Master) and Node 2 (Red Hub) participate. Blue side is dimmed/silenced.
+*   **BLUE MODE:** Only Node 4 (Master) and Node 3 (Blue Hub) participate. Red side is dimmed/silenced.
+*   **How to Change:** Click the **Mode Selector** button at the top of the Master UI during the **IDLE** state.
 
 ---
 
-## 🔊 5. Audio Troubleshooting (Table 5-4 Cues)
-All audio must go through **USB Speakers**, as Raspberry Pi 5 does not have an analog jack.
+## 🛠️ 5. Hub Calibration & Rules (Manual Maintenance)
+Because Hubs are headless, use these visual cues based on **Table 5-3**:
 
-1. **Selection:** Run `alsamixer`, press **F6**, and select your **USB Audio Device**.
-2. **Unmute:** Ensure the volume shows `00` (unmuted) and not `MM`.
-3. **Required Assets:** Ensure the `/assets` folder contains: 
-   * `match_start.wav`, `match_stop.wav`, `teleop_start.wav`, `endgame_alarm.wav`, and `foghorn.wav`.
+*   **The "Clear Hub" Rule:** Ensure no **FUEL** (balls) are blocking sensors during power-on. Sensors calibrate their "empty" state at boot. A blocked beam during startup will cause the system to ignore that sensor.
+*   **LED Status Codes:** 
+    *   **Solid Alliance Color:** Hub is active and ready for scoring.
+    *   **Pulsing Color:** Deactivation warning; starts 3 seconds before a **Shift** ends.
+    *   **Dim Alliance Color:** Hub is currently inactive (scoring disabled) or in Solo Practice mode.
 
 ---
 
-## 💻 6. Hardware Notes (Pi 4 vs. Pi 5)
+## 🔊 6. Audio Troubleshooting (Table 5-4 Cues)
+Raspberry Pi 5 does not have an analog jack. All audio must go through **USB Speakers**.
+
+1.  **Selection:** Run `alsamixer`, press **F6**, and select your **USB Audio Device**.
+2.  **Unmute:** Ensure the volume shows `00` (unmuted) and not `MM`.
+3.  **Required Assets:** Ensure `/assets` contains: `match_start.wav`, `match_stop.wav`, `teleop_start.wav`, `endgame_alarm.wav`, and `foghorn.wav`.
+
+---
+
+## 💻 7. Hardware Notes (Pi 4 vs. Pi 5)
 *   **Pathing:** All software must reside in `/home/pi/frc2026/`.
 *   **PWM Conflict:** Both models share the PWM timer with onboard audio. If LEDs flicker on **Pi 4**, ensure `dtparam=audio=off` is in `/boot/firmware/config.txt`.
-*   **Performance:** Hub logic is optimized to run identically on Pi 4 and Pi 5 hardware.
 
 ---
 
-## ⚖️ 7. Copyright & Attribution
+## ⚖️ 8. Copyright & Attribution
 *   **Core State Logic:** Adapted from Cheesy Arena by **Team 254 The Cheesy Poofs** (BSD 3-Clause).
 *   **Technical Inspiration:** Influence from **Team 3476 Code Orange**.
 *   **Game Rules:** Based on official **FIRST® REBUILT™ 2026** documentation.
