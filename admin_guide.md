@@ -35,7 +35,7 @@ To treat the nodes as "appliances," use these scripts to configure them to boot 
    chmod +x setup/master_config.sh
    ./setup/master_config.sh
 
-   ## 🛠️ 4. Hub Calibration & Rules (Manual Maintenance)
+## 🛠️ 4. Hub Calibration & Rules (Manual Maintenance)
 Use these visual cues and rules to ensure the Hubs are match-ready, as the Hubs are headless.
 
 ### **A. The "Clear Hub" Rule**
@@ -72,4 +72,53 @@ All audio must go through **USB Speakers**, as Raspberry Pi 5 does not have an a
 *   **Technical Inspiration:** Influence from **Team 3476 Code Orange**.
 *   **Game Rules:** Based on official **FIRST® REBUILT™ 2026** documentation.
 *   **Implementation:** Developed as MIT-Licensed Open Source by **Team 3476 Code Orange**, with architectural assistance from Google Gemini.
+
+
+
+🏟️ Pi Arena Lite: Admin & Operations Guide
+System Version: 1.0 (FRC 2026: REBUILT™)
+🏗️ 1. System Architecture
+Pi Arena Lite is a modular system running on four Raspberry Pi nodes:
+Node 1 & 4 (Masters): Manage timing, UI, and Match Audio. Connected via Ethernet.
+Node 2 & 3 (Hubs): Manage Break-Beam sensors and RGB Status LEDs. Connected via Wi-Fi.
+🔌 2. Hardware Wiring & Power (Hub Nodes)
+Component	Connection	Pin / Port
+Power Input	12V Battery	12V-to-5V Buck Converter (5A min)
+Fuel Sensors	4x NO Break-Beams	GPIO 17, 27, 22, 23 (Signal) + GND
+LED Strip	WS2812B RGB Strip	Data: GPIO 18 (PWM)
+⚠️ Note: Connect the LED Ground wire to a GND pin on the Pi to ensure a common data reference for the PWM signal.
+🚀 3. Appliance Mode (Automated Setup)
+A. Master Nodes (Nodes 1 & 4)
+Run sudo raspi-config -> System Options -> Boot/Auto Login -> Desktop Autologin.
+Run the automated configuration script:
+bash
+chmod +x setup/master_config.sh
+./setup/master_config.sh
+Use code with caution.
+
+B. Hub Nodes (Nodes 2 & 3)
+Run the automated service configuration script:
+bash
+chmod +x setup/hub_config.sh
+./setup/hub_config.sh
+Use code with caution.
+
+🛠️ 4. Hub Calibration & Rules
+The "Clear Hub" Rule: Ensure no FUEL (balls) are blocking sensors during power-on. Sensors calibrate their "empty" state at boot; a blocked beam will cause missed scoring.
+LED Status Codes:
+Solid Alliance Color: Hub is active and ready for scoring.
+Pulsing Color: Deactivation warning (starts 3s before shift ends).
+Dim Alliance Color: Hub is currently inactive (scoring disabled).
+🔊 5. Audio Troubleshooting (Table 5-4 Cues)
+Selection: Run alsamixer, press F6, and select your USB Audio Device.
+Unmute: Ensure the volume shows 00 (unmuted) and not MM.
+Required Assets: Ensure /assets contains: match_start.wav, match_stop.wav, teleop_start.wav, endgame_alarm.wav, and foghorn.wav.
+💻 6. Hardware Notes (Pi 4 vs. Pi 5)
+Pathing: All software must reside in /home/pi/frc2026/.
+PWM Conflict: Both models share the PWM timer with onboard audio. If LEDs flicker on Pi 4, ensure dtparam=audio=off is in /boot/firmware/config.txt.
+⚖️ 7. Copyright & Attribution
+Core State Logic: Adapted from Cheesy Arena by Team 254 The Cheesy Poofs (BSD 3-Clause).
+Technical Inspiration: Influence from Team 3476 Code Orange.
+Game Rules: Based on official FIRST® REBUILT™ 2026 documentation.
+Implementation: Developed as MIT-Licensed Open Source by Team 3476 Code Orange.
 
