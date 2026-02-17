@@ -35,6 +35,29 @@ To treat the nodes as "appliances," use these scripts to configure them to boot 
    chmod +x setup/master_config.sh
    ./setup/master_config.sh
    ```
+
+### **B. Hub Nodes (Nodes 2 & 3)**
+Hubs run as background services and do not require a login.
+1. Run the automated service configuration script:
+   ```bash
+   chmod +x setup/hub_config.sh
+   ./setup/hub_config.sh
+   ```
+
+2. Verify service is running: sudo systemctl status piarena-hub.service
+
+---
+
+
+
+
+
+
+
+
+
+
+
    
 ## 🛠️ 4. Hub Calibration & Rules (Manual Maintenance)
 Use these visual cues and rules to ensure the Hubs are match-ready, as the Hubs are headless.
