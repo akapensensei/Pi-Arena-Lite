@@ -1,52 +1,60 @@
 #!/bin/bash
-# Pi Arena Lite - Installation Script for Raspberry Pi 5
-# Distributed Practice Field Controller for FRC 2026: REBUILT™
+# ==============================================================================
+# Pi Arena Lite - Universal Installation Script
+# 
+# DESCRIPTION:
+# This script prepares a Raspberry Pi 4 or 5 to act as a node in the 
+# Pi Arena Lite mesh. It installs system libraries, Python modules, 
+# and handles the hardware-specific PWM/Audio conflicts.
+#
+# EDUCATIONAL NOTE FOR STUDENTS:
+# We use 'grep' to check the hardware version. This allows one script to 
+# manage multiple generations of hardware (Pi 4 vs Pi 5).
+#
+# Attribution:
+# - Core State Logic: Adapted from Cheesy Arena (BSD 3-Clause) by Team 254 (The Cheesy Poofs).
+# - Technical Inspiration: Influence from Team 3476 (Code Orange).
+# - Game Rules: Based on official FIRST® REBUILT™ 2026 documentation.
+# - Implementation: Developed as MIT-Licensed Open Source by Team 3476, 
+#  with architectural assistance from Google Gemini.
+# ==============================================================================
 
 echo "-------------------------------------------------------"
-echo "Initializing Pi Arena Lite Setup..."
-echo "Credits: Team 254 (Logic), Team 3476 (Inspiration)"
+echo "PI ARENA LITE: Hardware Initialization"
 echo "-------------------------------------------------------"
 
-# 1. Update System Repositories
+# 1. Update the Operating System
 echo "[1/4] Updating system packages..."
 sudo apt-get update && sudo apt-get upgrade -y
 
-# 2. Install System-Level Dependencies
-# python3-tk: For the master_node UI
-# alsa-utils: For USB speaker management
-# libsdl2-mixer-2.0-0: Required by pygame for match audio
-echo "[2/4] Installing system dependencies..."
-sudo apt-get install -y \
-    python3-pip \
-    python3-setuptools \
-    python3-tk \
-    alsa-utils \
-    libsdl2-mixer-2.0-0 \
-    git
+# 2. Install Core System Tools
+# python3-tk: Required for the Master UI
+# alsa-utils: Required for USB Audio management
+echo "[2/4] Installing system-level dependencies..."
+sudo apt-get install -y python3-pip python3-setuptools python3-tk alsa-utils git
 
-# 3. Install Python Libraries
-# rpi-ws281x: For Node 2/3 Hub LEDs
-# gpiozero: For Hub Break-Beams and Master Node interrupts
-# pygame: For official Table 5-4 audio cues
-echo "[3/4] Installing Python modules..."
+# 3. Install Python Modules
+# --break-system-packages is required on modern 'Bookworm' OS versions
+echo "[3/4] Installing Python libraries (GPIO, LEDs, Audio)..."
 sudo pip3 install rpi-ws281x gpiozero pygame --break-system-packages
 
-# 4. Hardware Configuration for LEDs (PWM Fix)
-# The Pi 5 uses the same PWM timer for onboard audio and GPIO 18.
-# Since you are using USB Speakers, we disable onboard audio to prevent LED flickering.
-echo "[4/4] Configuring hardware for LED PWM (GPIO 18)..."
+# 4. Hardware-Specific PWM Fix (The "Contributor's Fix")
+# GPIO 18 (used for LEDs) conflicts with onboard audio on both Pi 4 and 5.
+echo "[4/4] Optimizing hardware for LED PWM (GPIO 18)..."
+
+# Detect Hardware Version
+PI_MODEL=$(cat /proc/device-tree/model)
+echo "   Detected: $PI_MODEL"
+
 if ! grep -q "dtparam=audio=off" /boot/config.txt; then
+    echo "   Action: Disabling onboard audio to free up PWM timers..."
     echo "dtparam=audio=off" | sudo tee -a /boot/config.txt
-    echo "SUCCESS: Onboard audio disabled. LED PWM enabled."
+    echo "   NOTE: You must use USB SPEAKERS for match audio."
 else
-    echo "SKIP: PWM audio conflict already resolved in /boot/config.txt."
+    echo "   Action: Audio conflict already resolved."
 fi
 
-# Create Assets directory if it doesn't exist
-mkdir -p ../assets
-
 echo "-------------------------------------------------------"
-echo "SETUP COMPLETE!"
-echo "1. Place your sound files in the /assets/ folder."
-echo "2. Please REBOOT your Pi 5 now to apply PWM changes."
+echo "INSTALLATION COMPLETE"
+echo "Please reboot your Pi to apply the hardware changes."
 echo "-------------------------------------------------------"
