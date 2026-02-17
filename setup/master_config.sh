@@ -1,6 +1,6 @@
 #!/bin/bash
 # ==============================================================================
-# Pi Arena Lite - Master Node Auto-Boot Configuration (2026 REBUILT)
+# Pi Arena Lite - Master Node Auto-Boot Configuration
 # 
 # DESCRIPTION:
 # This script turns a standard Raspberry Pi into a dedicated "Driver Station 
@@ -13,20 +13,17 @@
 # Interface (GUI) to launch a specific program as soon as it loads.
 #
 # Attribution:
-# - Core State Logic: Adapted from Cheesy Arena (BSD 3-Clause) by Team 254 (The Cheesy Poofs).
-# - Technical Inspiration: Influence from Team 3476 (Code Orange).
+# - Core State Logic: Adapted from Cheesy Arena by Team 254 The Cheesy Poofs (BSD 3-Clause).
+# - Technical Inspiration: Influence from Team 3476 Code Orange.
 # - Game Rules: Based on official FIRST® REBUILT™ 2026 documentation.
-# - Implementation: Developed as MIT-Licensed Open Source by Team 3476, 
+# - Implementation: Developed as MIT-Licensed Open Source by Team 3476 Code Orange, 
 #   with architectural assistance from Google Gemini.
 # ==============================================================================
 
 echo "Configuring Master Node Appliance Mode..."
 
-# Create the standard Linux autostart directory path
 mkdir -p /home/pi/.config/autostart
 
-# Use 'cat' to create the launcher file for the UI
-# Path: /home/pi/frc2026/
 cat <<EOF > /home/pi/.config/autostart/piarena.desktop
 [Desktop Entry]
 Type=Application
@@ -36,7 +33,6 @@ WorkingDirectory=/home/pi/frc2026
 Terminal=false
 EOF
 
-# Ensure the OS has permission to execute the main logic file
 chmod +x /home/pi/frc2026/master_node/main.py
 
 echo "SUCCESS: Master Node UI is now a dedicated Driver Station Display."
