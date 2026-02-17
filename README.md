@@ -24,3 +24,22 @@
 - **Implementation:** Custom Python 3 modular build for Raspberry Pi.
 - **License:** MIT License. See `LICENSE` for details.
 
+## 🏗️ Repository Map
+```text
+frc2026/
+├── assets/                     # Official Table 5-4 Audio Cues (.wav)
+├── common/                     # Shared Logic & Networking (All Nodes)
+├── master_node/                # Driver Station Logic (Nodes 1 & 4)
+├── hub_node/                   # Field Goal Logic (Nodes 2 & 3)
+├── setup/                      # Infrastructure as Code (Setup & Appliance Config)
+│   ├── install_dependencies.sh # System & Hardware Prep
+│   ├── master_config.sh        # UI Autostart Configuration
+│   ├── hub_config.sh           # Systemd Service Configuration
+│   ├── kiosk_config.sh         # Mouse/Taskbar Hiding
+│   ├── piarena.service         # Systemd Service Template
+│   ├── ping_test.sh            # Bash Mesh Diagnostic
+│   └── ping_test.py            # Python Mesh Diagnostic (Educational)
+├── docs/                       # System Documentation & Manuals
+├── LICENSE                     # MIT License
+└── README.md                   # You are here.
+```
