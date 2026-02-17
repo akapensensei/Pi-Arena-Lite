@@ -44,8 +44,10 @@ Hubs run as background services and do not require a login.
    ./setup/hub_config.sh
    ```
 
-2. Verify service is running: sudo systemctl status piarena-hub.service
-
+2. Verify service is running: 
+   ```bash
+   sudo systemctl status piarena-hub.service
+   ```
 ---
 
 
