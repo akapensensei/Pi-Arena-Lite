@@ -12,11 +12,13 @@ STUDENT EDUCATIONAL OVERVIEW:
 3. DIRECT POWER: Note that the Pi 5 sends the DATA, but the 12V Battery 
    provides the POWER to keep the Pi from "browning out."
 
+================================================================================
 Attribution:
-- Core Match Logic: Derived from Cheesy Arena by Team 254 (The Cheesy Poofs).
+- Core State Logic: Adapted from Cheesy Arena (BSD 3-Clause) by Team 254 (The Cheesy Poofs).
 - Technical Inspiration: Influence from Team 3476 (Code Orange).
 - Game Rules: Based on official FIRST® REBUILT™ 2026 documentation.
-- Implementation: Developed with assistance from Google Gemini.
+- Implementation: Developed as MIT-Licensed Open Source by Team 3476, 
+  with architectural assistance from Google Gemini.
 ================================================================================
 """
 
