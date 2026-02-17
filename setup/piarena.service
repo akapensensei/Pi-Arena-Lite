@@ -1,16 +1,33 @@
+# ==============================================================================
+# Pi Arena Lite - Hub Node System Service Configuration
+# Location: /etc/systemd/system/piarena-hub.service
+# 
+# DESCRIPTION:
+# This file tells the Linux operating system how to manage the Hub scoring
+# software as a background "Appliance." 
+#
+# Attribution:
+# - Core State Logic: Adapted from Cheesy Arena by Team 254 The Cheesy Poofs (BSD 3-Clause).
+# - Technical Inspiration: Influence from Team 3476 Code Orange.
+# - Game Rules: Based on official FIRST® REBUILT™ 2026 documentation.
+# - Implementation: Developed as MIT-Licensed Open Source by Team 3476 Code Orange, 
+#   with architectural assistance from Google Gemini.
+# ==============================================================================
+
 [Unit]
-Description=Pi Arena Lite Master Controller
+Description=Pi Arena Hub Controller (2026 REBUILT)
 After=network.target
 
 [Service]
-Type=simple
-User=pi
-WorkingDirectory=/home/pi/frc2026-practice-field
-Environment=DISPLAY=:0
-Environment=XAUTHORITY=/home/pi/.Xauthority
-ExecStart=/usr/bin/python3 -m master_node.main
+# -u ensures Python output is unbuffered for real-time logging in journalctl
+ExecStart=/usr/bin/python3 -u /home/pi/frc2026/hub_node/main.py
+WorkingDirectory=/home/pi/frc2026
+
+# SELF-HEALING: Restarts the Hub automatically if the script or network fails
 Restart=always
 RestartSec=5
+User=pi
 
 [Install]
-WantedBy=graphical.target
+# This allows the service to start at boot without requiring a user login
+WantedBy=multi-user.target
