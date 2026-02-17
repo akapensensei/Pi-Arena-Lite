@@ -25,3 +25,8 @@ TELEOP_CLIMB_LEVEL_1 = 10   # Level 1 climb in Endgame
 # NETWORK SETTINGS
 HEARTBEAT_INTERVAL = 0.5    # Seconds between node health checks
 UDP_PORT = 5555             # Port for inter-node communication
+
+# PRACTICE MODES
+MODE_FULL = "FULL"  # Standard FRC Match
+MODE_RED  = "RED"   # Solo Practice Red Side
+MODE_BLUE = "BLUE"  # Solo Practice Blue Side
