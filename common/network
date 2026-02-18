@@ -1,0 +1,108 @@
+"""
+================================================================================
+Pi Arena Lite - common/network.py
+Distributed Practice Field Controller for FRC 2026: REBUILT™
+
+STUDENT EDUCATIONAL OVERVIEW:
+1. UDP VS TCP: Most internet traffic uses TCP (checks for every packet). In 
+   robotics, we use UDP because it is "Fire and Forget." It is much faster, 
+   which is critical for real-time scoring.
+2. ASYNCIO DATAGRAMS: This file uses Python's 'DatagramProtocol'. It allows the 
+   Pi to handle network traffic in the background without stopping the code 
+   that checks the beam sensors.
+3. SERIALIZATION: We use JSON to turn our Python dictionaries into "strings" 
+   that can be sent over WiFi, and then turn them back into data on the other end.
+
+================================================================================
+Attribution:
+- Technical Inspiration: Influence from Team 3476 (Code Orange).
+- Implementation: Developed as MIT-Licensed Open Source by Team 3476, 
+  with architectural assistance from Google Gemini.
+================================================================================
+"""
+
+import asyncio
+import json
+import socket
+
+class ArenaNetworkNode:
+    """
+    The 'Engine' used by the Hub Nodes (2 & 3) to talk to the Master.
+    """
+    def __init__(self, target_ip, port):
+        self.target_ip = target_ip
+        self.port = port
+        self.transport = None
+        # The queue acts as a "To-Do" list for packets waiting to be sent
+        self.queue = asyncio.Queue()
+
+    async def run_engine(self):
+        """
+        The main loop that manages the UDP socket lifecycle.
+        """
+        loop = asyncio.get_event_loop()
+        
+        # Create the underlying UDP socket
+        # AF_INET = IPv4 | SOCK_DGRAM = UDP
+        sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        sock.setblocking(False)
+
+        print(f"[NET] Node Engine targeting {self.target_ip}:{self.port}")
+
+        while True:
+            # Wait for a message to appear in our queue
+            message_dict = await self.queue.get()
+            
+            # Package the data into a JSON string and then into bytes
+            try:
+                packet = json.dumps(message_dict).encode('utf-8')
+                # Student Note: loop.sock_sendto is the non-blocking way to send UDP
+                await loop.sock_sendto(sock, packet, (self.target_ip, self.port))
+            except Exception as e:
+                print(f"[NET ERROR] Could not send packet: {e}")
+            
+            self.queue.task_done()
+
+    def send_message(self, message_dict):
+        """
+        Public method to drop a message into the queue for sending.
+        """
+        self.queue.put_nowait(message_dict)
+
+
+class MasterNetworkServer:
+    """
+    The 'Engine' used by the Master Node (1 & 4) to listen for Hub scores.
+    """
+    def __init__(self, port):
+        self.port = port
+        self.callback = None # This is where 'on_data_received' from main.py plugs in
+
+    def set_callback(self, func):
+        """
+        Connects the network engine to the scoring logic in main.py.
+        """
+        self.callback = func
+
+    async def listen_loop(self):
+        """
+        A background task that listens for any UDP packets on the assigned port.
+        """
+        loop = asyncio.get_event_loop()
+        
+        # Bind the socket to the port to listen for incoming data
+        sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        sock.bind(('', self.port))
+        sock.setblocking(False)
+
+        print(f"[NET] Master Server listening on port {self.port}")
+
+        while True:
+            # Wait for any data to arrive
+            data, addr = await loop.sock_recvfrom(sock, 1024)
+            
+            if self.callback:
+                # Send the raw data back to main.py to be processed
+                self.callback(data)
+            
+            await asyncio.sleep(0.001) # Tiny sleep to prevent CPU hogging
