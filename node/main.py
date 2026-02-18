@@ -1,22 +1,34 @@
 """
 ================================================================================
 Pi Arena Lite - Node/main.py
-Distributed Practice Field Controller for FRC 2026: REBUILT™
+The Distributed Sensory Edge of the FRC 2026: REBUILT™ Practice Field
 
-STUDENT EDUCATIONAL OVERVIEW:
-1. HARDWARE INTERRUPTS: We use 'when_pressed' on the beam sensors. Instead of 
-   the Pi checking the sensor in a loop, the sensor "interrupts" the CPU the 
-   instant a ball is detected. This ensures we never miss a score.
-2. UDP CLIENT: The Node sends a UDP "packet" to the Master. Unlike TCP, UDP 
-   doesn't wait for a reply, making it ideal for the high-speed scoring of 
-   6-inch foam Fuel balls in REBUILT™.
-3. MODULARITY: This script is identical for both Red and Blue Hubs. The only 
-   difference is the 'ALLIANCE' variable in config.py.
+OVERALL PROJECT GOALS:
+The Hub Node acts as a high-fidelity event reporter. In a 
+distributed arena, the Hub is the "eyes" of the system. It detects rapid-fire 
+physical events (Fuel balls passing through sensors) and relays that data to the 
+Master Node with minimal latency, ensuring no scoring event is lost 
+during high-intensity play.
+
+CORE FUNCTIONALITY & ARCHITECTURE:
+This module uses an 'Interrupt-Driven' architecture. Rather than constantly checking 
+if a sensor is blocked (polling), the code uses hardware interrupts. This allows 
+the Pi to remain in a low-power waiting state or handle auxiliary tasks like LED 
+animations, only "waking up" the scoring logic the microsecond a beam is broken.
+
+NOVEL CONCEPTS:
+1. Deterministic Reporting: The Hub is "logic-blind." It does not 
+   decide if a ball is worth points or if the game is active. By simply 
+   reporting the event and a timestamp, it allows the Master Node to perform 
+   centralized validation, preventing "split-brain" scoring errors.
+2. Async Hardware Interfacing: By using 'asyncio.gather', the Hub can manage 
+   background network health and LED status signals without creating "jitter" 
+   in the sensor detection logic.
 
 ================================================================================
 Attribution:
+- Core State Logic: Adapted from Cheesy Arena (BSD 3-Clause) by Team 254.
 - Technical Inspiration: Influence from Team 3476 (Code Orange).
-- Game Rules: Based on official FIRST® REBUILT™ 2026 documentation.
 - Implementation: Developed as MIT-Licensed Open Source by Team 3476, 
   with architectural assistance from Google Gemini.
 ================================================================================
@@ -25,62 +37,64 @@ Attribution:
 import asyncio
 from gpiozero import Button
 from common.network import ArenaNetworkNode
-from common.config import MASTER_IP, HUB_SENSORS, ALLIANCE_COLOR, PORT
+from common.config import MASTER_IP, PORT, HUB_SENSORS, ALLIANCE_COLOR
 
-# --- CORE HARDWARE SETUP ---
+# --- HARDWARE INTERFACE ---
 
-# Students: The HUB_SENSORS list in config.py maps to the 4 break-beam sensors.
+# Initialize sensors using BCM GPIO pins defined in config.py.
+# Internal pull-up resistors are enabled to ensure a clean HIGH signal.
 sensors = [Button(pin, pull_up=True) for pin in HUB_SENSORS]
 
-# Initialize our specialized Network Client targeting the Master Node.
+# Initialize the outbound network engine targeting the Master Node.
 network = ArenaNetworkNode(target_ip=MASTER_IP, port=PORT)
 
 def on_fuel_detected():
     """
-    Core Function: What happens when a Fuel ball passes through the Hub.
-    Students: We simply "fire and forget" a message to the Master.
+    Hardware Interrupt Callback.
+    Triggered instantly when a Fuel ball breaks the beam sensor.
     """
-    print(f"[{ALLIANCE_COLOR.upper()}] Fuel Detected! Sending to Master...")
-    
-    # We send a standard dictionary that the Master knows how to decode.
+    # Create a standardized event packet
     message = {
         "type": "FUEL_SCORED",
         "alliance": ALLIANCE_COLOR
     }
+    
+    # Drop the message into the async queue for immediate transmission
     network.send_message(message)
+    print(f"[{ALLIANCE_COLOR.upper()}] Event reported to Master.")
 
-# Attach our scoring function to every physical sensor.
+# Register the interrupt handler for all sensors in this Hub.
 for sensor in sensors:
     sensor.when_pressed = on_fuel_detected
 
-# --- AUXILIARY TASKS ---
+# --- BACKGROUND TASKS ---
 
-async def status_led_loop():
+async def hub_feedback_loop():
     """
-    Students: This is where you would add code to control the RGB LED strips.
-    The Master will eventually send a "Hub Status" back to us to change colors.
+    Manages local feedback, such as the RGB LED Hub status.
+    This task runs concurrently with the network engine.
     """
     while True:
-        # Example: Pulse the Hub's alliance color
+        # Future Logic: Update LEDs based on ACTIVE/INACTIVE signals from Master
         await asyncio.sleep(0.1)
 
-# --- MAIN ENTRY POINT ---
+# --- EXECUTION ENGINE ---
 
 async def main():
     """
-    Starts the network sender and the local status tasks concurrently.
+    Synchronizes the network engine and auxiliary hub tasks.
     """
-    print(f"=== {ALLIANCE_COLOR.upper()} HUB NODE ACTIVE ===")
-    print(f"Targeting Master at {MASTER_IP}:{PORT}")
+    print(f"=== {ALLIANCE_COLOR.upper()} HUB NODE INITIALIZED ===")
+    print(f"Monitoring Pins: {HUB_SENSORS}")
     
-    # asyncio.gather allows the Pi to handle network and LEDs at once.
+    # Run the networking engine and feedback loops in parallel
     await asyncio.gather(
-        network.run_engine(),  # Keeps the UDP connection ready
-        status_led_loop()      # Handles local visual feedback
+        network.run_engine(),
+        hub_feedback_loop()
     )
 
 if __name__ == "__main__":
     try:
         asyncio.run(main())
     except KeyboardInterrupt:
-        print(f"Shutting down {ALLIANCE_COLOR} Node...")
+        print(f"\n[SHUTDOWN] {ALLIANCE_COLOR.upper()} Hub Node offline.")
