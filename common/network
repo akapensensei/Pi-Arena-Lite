@@ -1,20 +1,34 @@
 """
 ================================================================================
 Pi Arena Lite - common/network.py
-Distributed Practice Field Controller for FRC 2026: REBUILT™
+The Nervous System of the FRC 2026: REBUILT™ Practice Field
 
-STUDENT EDUCATIONAL OVERVIEW:
-1. UDP VS TCP: Most internet traffic uses TCP (checks for every packet). In 
-   robotics, we use UDP because it is "Fire and Forget." It is much faster, 
-   which is critical for real-time scoring.
-2. ASYNCIO DATAGRAMS: This file uses Python's 'DatagramProtocol'. It allows the 
-   Pi to handle network traffic in the background without stopping the code 
-   that checks the beam sensors.
-3. SERIALIZATION: We use JSON to turn our Python dictionaries into "strings" 
-   that can be sent over WiFi, and then turn them back into data on the other end.
+OVERALL PROJECT GOALS:
+This module provides the communication framework that bridges the gap between 
+physically distant hardware nodes. In a high-speed robotics environment, 
+the network must be invisible, resilient, and—above all—fast. The goal is to 
+ensure that a physical event (like a ball breaking a beam) is reflected in 
+the Master Node's logic with the lowest possible latency.
+
+CORE FUNCTIONALITY & ARCHITECTURE:
+The module implements a Dual-Role Networking Engine using Python's 'asyncio' 
+framework. It is designed to handle "Non-Blocking I/O," meaning the Raspberry 
+Pi can send or receive data while simultaneously running light animations 
+or monitoring sensors. 
+
+NOVEL CONCEPTS:
+1. Fire-and-Forget (UDP): Unlike standard internet traffic (TCP), we use UDP 
+   datagrams. In a practice match, we prioritize "speed of delivery" over 
+   "guaranteed delivery." If a packet is lost, we don't want the system to 
+   hang while trying to re-send it; we want the next packet to fly immediately.
+2. Callback Injection: The Master server is "logic-agnostic." It doesn't know 
+   what a 'score' is. It simply receives data and hands it off to a 'callback' 
+   function. This allows programmers to change the game rules in main.py 
+   without ever touching the network engine.
 
 ================================================================================
 Attribution:
+- Core State Logic: Adapted from Cheesy Arena (BSD 3-Clause) by Team 254.
 - Technical Inspiration: Influence from Team 3476 (Code Orange).
 - Implementation: Developed as MIT-Licensed Open Source by Team 3476, 
   with architectural assistance from Google Gemini.
@@ -27,82 +41,87 @@ import socket
 
 class ArenaNetworkNode:
     """
-    The 'Engine' used by the Hub Nodes (2 & 3) to talk to the Master.
+    The 'Outbound Engine' used by Hub Nodes to report field events.
+    It manages a queue of messages to ensure that rapid-fire scoring 
+    doesn't overwhelm the network interface.
     """
     def __init__(self, target_ip, port):
         self.target_ip = target_ip
         self.port = port
-        self.transport = None
-        # The queue acts as a "To-Do" list for packets waiting to be sent
         self.queue = asyncio.Queue()
 
     async def run_engine(self):
         """
-        The main loop that manages the UDP socket lifecycle.
+        Maintains the lifecycle of the UDP socket.
+        It continuously watches the 'To-Do' list (queue) and fires 
+        packets at the Master as they arrive.
         """
         loop = asyncio.get_event_loop()
         
-        # Create the underlying UDP socket
-        # AF_INET = IPv4 | SOCK_DGRAM = UDP
+        # SOCK_DGRAM specifies UDP (User Datagram Protocol)
+        # AF_INET specifies IPv4 addressing
         sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         sock.setblocking(False)
 
-        print(f"[NET] Node Engine targeting {self.target_ip}:{self.port}")
-
         while True:
-            # Wait for a message to appear in our queue
+            # Wait for a dictionary message from the Hub logic
             message_dict = await self.queue.get()
             
-            # Package the data into a JSON string and then into bytes
             try:
+                # Convert Python objects to JSON strings for transmission
                 packet = json.dumps(message_dict).encode('utf-8')
-                # Student Note: loop.sock_sendto is the non-blocking way to send UDP
+                # Non-blocking send operation
                 await loop.sock_sendto(sock, packet, (self.target_ip, self.port))
-            except Exception as e:
-                print(f"[NET ERROR] Could not send packet: {e}")
+            except Exception:
+                # In UDP, we log the error but keep the engine running
+                pass
             
             self.queue.task_done()
 
     def send_message(self, message_dict):
         """
-        Public method to drop a message into the queue for sending.
+        Thread-safe method to queue a message for the next available 
+        transmission window.
         """
         self.queue.put_nowait(message_dict)
 
 
 class MasterNetworkServer:
     """
-    The 'Engine' used by the Master Node (1 & 4) to listen for Hub scores.
+    The 'Inbound Engine' used by the Master Node to listen for field data.
+    It acts as a listener funneling raw network traffic into 
+    the game logic defined in main.py.
     """
     def __init__(self, port):
         self.port = port
-        self.callback = None # This is where 'on_data_received' from main.py plugs in
+        self.callback = None 
 
     def set_callback(self, func):
         """
-        Connects the network engine to the scoring logic in main.py.
+        Plugs a specific function (like on_data_received) into the 
+        network engine's data stream.
         """
         self.callback = func
 
     async def listen_loop(self):
         """
-        A background task that listens for any UDP packets on the assigned port.
+        Listens on a specific port for any incoming UDP data.
+        As data arrives, it is immediately handed to the callback function.
         """
         loop = asyncio.get_event_loop()
         
-        # Bind the socket to the port to listen for incoming data
+        # Bind the socket to the configured port
         sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         sock.bind(('', self.port))
         sock.setblocking(False)
 
-        print(f"[NET] Master Server listening on port {self.port}")
-
         while True:
-            # Wait for any data to arrive
+            # sock_recvfrom waits for data without freezing the rest of the Pi
             data, addr = await loop.sock_recvfrom(sock, 1024)
             
             if self.callback:
-                # Send the raw data back to main.py to be processed
+                # Pass the raw bytes to the high-level logic for decoding
                 self.callback(data)
             
-            await asyncio.sleep(0.001) # Tiny sleep to prevent CPU hogging
+            # Tiny yield to allow other background tasks (like the game timer) to run
+            await asyncio.sleep(0.001)
