@@ -4,27 +4,25 @@ Pi Arena Lite - Master/main.py
 The Central Intelligence of the FRC 2026: REBUILT™ Practice Field
 
 OVERALL PROJECT GOALS:
-The primary objective of the Master Node is to act as the "Source of Truth" for 
-a distributed arena. In a multi-node environment, network latency and hardware 
-desynchronization are the enemies. This code is designed to centralize the 
-logic, timing, and scoring rules so that the field behaves as a singular, 
-deterministic system.
+The Master Node serves as the "Source of Truth" for the entire arena. In a 
+distributed system, different nodes can easily drift out of sync. This script 
+centralizes the match clock, validates all incoming score packets, and 
+publishes the global field state so that all other processes (like the UI 
+and the Hub Nodes) stay perfectly aligned with the official game rules.
 
 CORE FUNCTIONALITY & ARCHITECTURE:
-This software is built on a 'Centralized State Machine.' This means the entire 
-field—from lights to sensors—always exists in one of five distinct states: 
-(PRE_MATCH, AUTO, PAUSE, TELEOP, or POST_MATCH). By centering all logic on the 
-match clock, we ensure that a Hub Node cannot score points unless the Master 
-Node has "authorized" the current game period.
+This module implements a 'State-Driven Controller.' By managing a global 
+Match State (AUTO, TELEOP, etc.), it ensures that scoring events are only 
+processed during legal play periods. It acts as a data hub, receiving UDP 
+packets from the field and exporting a JSON state file for the UI to display.
 
 NOVEL CONCEPTS:
-1. Zero-Value Scoring: Unlike standard field controllers that ignore shots 
-   during 'Dark' periods, this system captures and categorizes them. This 
-   provides a unique strategic feedback loop, allowing drive teams to 
-   mathematically analyze their "Reload Deficit" and "Out-of-Phase" cycles.
-2. Async/UDP Synergy: The code utilizes asynchronous networking paired with 
-   UDP datagrams to prioritize speed over reliability—a critical trade-off 
-   in real-time robotics where a late score is a wrong score.
+1. State Exportation (The Handshake): This script writes to '/tmp/field_state.json'. 
+   This allows the 'ui_display.py' script to be a separate process, protecting 
+   the core timing logic from UI crashes—a professional "Separation of Concerns."
+2. Zero-Value Validation: Every incoming score is checked against the current 
+   'Active Hub' status. This turns raw network data into actionable strategy 
+   analytics for the drive team.
 
 ================================================================================
 Attribution:
@@ -36,25 +34,48 @@ Attribution:
 """
 
 import asyncio
-import time
 import json
+import time
+import os
 from gpiozero import Button
 from common.network import MasterNetworkServer
 from common.config import PORT, PANIC_BUTTON_PIN, AUTO_SECONDS, TELEOP_SECONDS
 
-# --- SYSTEM STATE & ANALYTICS ---
+# --- GLOBAL GAME STATE ---
 match_state = "PRE_MATCH"
 time_left = 0
 scores = {"red": 0, "blue": 0}
 zero_value_scores = {"red": 0, "blue": 0}
 hub_status = {"red": "ACTIVE", "blue": "ACTIVE"}
+auto_winner = None
 
-# --- SCORE PROCESSING ---
+# --- STATE EXPORTATION ---
+
+async def export_field_state():
+    """
+    Saves the current match data to a local file for the UI script to read.
+    """
+    while True:
+        state = {
+            "match_state": match_state,
+            "time_left": time_left,
+            "scores": scores,
+            "zero_value": zero_value_scores,
+            "hub_status": hub_status
+        }
+        try:
+            # Atomic-style write to /tmp to ensure the UI sees a complete file
+            with open("/tmp/field_state.json", "w") as f:
+                json.dump(state, f)
+        except Exception:
+            pass
+        await asyncio.sleep(0.1) # 10Hz update rate for the UI
+
+# --- SCORE LOGIC ---
 
 def on_data_received(raw_data):
     """
-    Decodes incoming UDP packets and applies game-specific scoring rules.
-    If the Hub is 'Inactive', the score is logged as a 'Zero-Value' event.
+    The Gatekeeper: Validates incoming WiFi scores against the match clock.
     """
     global scores, zero_value_scores
     try:
@@ -62,33 +83,42 @@ def on_data_received(raw_data):
         alliance = data.get("alliance")
         
         if data.get("type") == "FUEL_SCORED":
-            # State-Gate: Points only count during official play periods
+            # State-Check: Is the match running and is the Hub active?
             if match_state in ["AUTO", "TELEOP"] and hub_status[alliance] == "ACTIVE":
                 scores[alliance] += 1
             else:
-                # Log the attempt for post-match efficiency analysis
                 zero_value_scores[alliance] += 1
-                
-    except Exception as e:
-        pass # Silently ignore malformed network packets
+    except Exception:
+        pass
 
-# --- MATCH CONTROL & TIMING ---
+# --- MATCH TIMELINE ---
 
 async def run_match_timer():
     """
-    Manages the progression of match states and handles 'Endgame' overrides.
-    At 30 seconds, this function forces both hubs to an ACTIVE state.
+    The Master Clock. Advances the game through periods and handles Endgame.
     """
     global match_state, time_left, hub_status
     
     while True:
-        if match_state == "TELEOP":
+        if match_state == "AUTO":
+            time_left = AUTO_SECONDS
+            while time_left > 0 and match_state == "AUTO":
+                await asyncio.sleep(1)
+                time_left -= 1
+            if match_state == "AUTO": match_state = "PAUSE"
+                
+        elif match_state == "PAUSE":
+            time_left = 5
+            await asyncio.sleep(time_left)
+            match_state = "TELEOP"
+            
+        elif match_state == "TELEOP":
             time_left = TELEOP_SECONDS
             while time_left > 0 and match_state == "TELEOP":
-                # The 30s 'Endgame' override: both hubs active for the finale
+                # --- ENDGAME OVERRIDE (30s) ---
                 if time_left == 30:
                     hub_status = {"red": "ACTIVE", "blue": "ACTIVE"}
-                    # Signal nodes to transition to White/Endgame lights here
+                    # Students: This is where you trigger the Train Whistle sound!
                 
                 await asyncio.sleep(1)
                 time_left -= 1
@@ -96,25 +126,10 @@ async def run_match_timer():
             
         await asyncio.sleep(0.1)
 
-# --- USER INTERFACE & FEEDBACK ---
+# --- PHYSICAL INPUTS ---
 
-async def display_live_metrics():
-    """
-    Renders live scoring and Ranking Point (RP) progress to the console.
-    Helps drivers track their proximity to the 100/360 Fuel thresholds.
-    """
-    while True:
-        if match_state in ["AUTO", "TELEOP"]:
-            # Logic for printing RP Progress (e.g. 52/100)
-            pass
-        await asyncio.sleep(1)
-
-# --- HARDWARE INTERRUPTS ---
-
-def toggle_match():
-    """
-    Physical panic button callback. Initializes or resets the entire field state.
-    """
+def handle_panic_button():
+    """ Toggles the match between PRE_MATCH and START. """
     global match_state, scores, zero_value_scores
     if match_state == "PRE_MATCH":
         scores = {"red": 0, "blue": 0}
@@ -123,22 +138,27 @@ def toggle_match():
     else:
         match_state = "PRE_MATCH"
 
-# Setup physical input
 panic_btn = Button(PANIC_BUTTON_PIN)
-panic_btn.when_pressed = toggle_match
+panic_btn.when_pressed = handle_panic_button
 
-# --- MAIN ENGINE ---
+# --- MAIN EXECUTION ---
 
 async def main():
     server = MasterNetworkServer(port=PORT)
     server.set_callback(on_data_received)
 
-    # Gather runs all concurrent tasks: Networking, Timing, and UI
+    print(f"=== PI ARENA MASTER STARTING ON PORT {PORT} ===")
+    
+    # Launching the concurrent "Engines"
     await asyncio.gather(
         server.listen_loop(),
         run_match_timer(),
-        display_live_metrics()
+        export_field_state()
     )
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    try:
+        asyncio.run(main())
+    except KeyboardInterrupt:
+        if os.path.exists("/tmp/field_state.json"):
+            os.remove("/tmp/field_state.json")
