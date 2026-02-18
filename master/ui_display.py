@@ -1,106 +1,100 @@
 """
 ================================================================================
-Pi Arena Lite - master_node/ui_display.py
-Distributed Practice Field Controller for FRC 2026: REBUILT™
+Pi Arena Lite - Master/ui_display.py
+The Numerical Audience Display for FRC 2026: REBUILT™
 
-STUDENT EDUCATIONAL OVERVIEW:
-1. MODE SELECTOR: We added a button that cycles through FULL, RED, and BLUE 
-   modes. This allows mentors to "silence" half the field for debugging.
-2. DYNAMIC UI: The background colors and labels change based on the selected 
-   mode to give immediate visual feedback to the teams.
+OVERALL PROJECT GOALS:
+This script provides the "Situational Awareness" for the drive team. By 
+replicating the official FMS (Field Management System) numerical ratios, 
+drivers can instantly see their progress toward the 100/360 Fuel thresholds. 
+The goal is to remove visual clutter and provide high-speed data.
 
+CORE FUNCTIONALITY:
+This is a 'Read-Only' script. It does not calculate scores or run the match 
+timer. Instead, it "observes" a shared state file (/tmp/field_state.json) 
+written by the Master Controller. This separation ensures that if the UI 
+crashes, the match timing and scoring logic remain unaffected.
+
+NOVEL CONCEPTS:
+1. Dynamic Denominators: The target threshold automatically flips from /100 
+   to /360 once the first Ranking Point is achieved.
+2. Analytics Transparency: This UI displays 'Zero-Value Scores' as a 
+   sub-metric, helping coaches identify strategy timing errors in real-time.
+
+================================================================================
 Attribution:
-- Core Match Logic: Adapted from Cheesy Arena by Team 254 The Cheesy Poofs (BSD 3-Clause).
-- Technical Inspiration: Influence from Team 3476 Code Orange.
-- Game Rules: Based on official FIRST® REBUILT™ 2026 documentation.
-- Implementation: Developed as MIT-Licensed Open Source by Team 3476 Code Orange, 
+- Technical Inspiration: Influence from Team 3476 (Code Orange).
+- Implementation: Developed as MIT-Licensed Open Source by Team 3476, 
   with architectural assistance from Google Gemini.
 ================================================================================
 """
 
-import tkinter as tk
-from common.constants import *
+import time
+import json
+import os
 
-class ScoringUI:
-    def __init__(self):
-        self.root = tk.Tk()
-        self.root.title("Pi Arena Lite - 2026 REBUILT")
-        self.root.attributes('-fullscreen', True) 
-        self.root.configure(bg='black')
+# --- FIELD DEFINITIONS ---
+STATE_FILE = "/tmp/field_state.json"
+THRESHOLD_ENERGIZED = 100
+THRESHOLD_SUPERCHARGED = 360
 
-        # MODE SELECTOR: Allows solo practice for Red or Blue side
-        self.mode_var = tk.StringVar(value="FULL")
-        self.mode_button = tk.Button(
-            self.root, 
-            textvariable=self.mode_var, 
-            command=self.toggle_field_mode,
-            font=("Helvetica", 18, "bold"), 
-            bg="#333", fg="white",
-            relief="flat", pady=10
-        )
-        self.mode_button.pack(pady=10)
+def render_fms_ui():
+    """
+    Main Loop: Clears the screen and draws the numerical FMS scoreboard.
+    """
+    while True:
+        try:
+            # Step 1: Check if the Master Controller has started yet
+            if not os.path.exists(STATE_FILE):
+                print(">>> WAITING FOR MASTER CONTROLLER...")
+                time.sleep(1)
+                continue
 
-        # HEADER: Match Phase and Timer
-        self.state_label = tk.Label(self.root, text="WAITING FOR START", font=("Helvetica", 48), fg="white", bg="black")
-        self.state_label.pack(pady=10)
+            # Step 2: Read the 'Source of Truth' from the Master
+            with open(STATE_FILE, "r") as f:
+                data = json.load(f)
 
-        self.timer_label = tk.Label(self.root, text="02:30", font=("Helvetica", 120, "bold"), fg="yellow", bg="black")
-        self.timer_label.pack(pady=10)
+            # Step 3: Clear Terminal (ANSI Escape for no-flicker)
+            print("\033[H\033[J", end="") 
+            
+            # --- HEADER ---
+            print("="*60)
+            print(f"  MATCH TIME: {data['time_left']:03d}s   |   STATE: {data['match_state']}")
+            print("="*60)
 
-        # SCORE CONTAINER
-        self.score_frame = tk.Frame(self.root, bg="black")
-        self.score_frame.pack(expand=True, fill="both", padx=50)
+            # --- ALLIANCE SCORING ---
+            for alliance in ["red", "blue"]:
+                fuel = data['scores'][alliance]
+                
+                # Dynamic RP Logic: Flip the target denominator as they score
+                if fuel < THRESHOLD_ENERGIZED:
+                    target = THRESHOLD_ENERGIZED
+                    rp_icon = "[ ]" # Not yet Energized
+                elif fuel < THRESHOLD_SUPERCHARGED:
+                    target = THRESHOLD_SUPERCHARGED
+                    rp_icon = "[●]" # Energized!
+                else:
+                    target = fuel
+                    rp_icon = "[✸]" # Supercharged!
 
-        # RED ALLIANCE DISPLAY
-        self.red_frame = tk.Frame(self.score_frame, bg="#CC0000", bd=10)
-        self.red_frame.pack(side="left", expand=True, fill="both", padx=20, pady=20)
-        tk.Label(self.red_frame, text="RED ALLIANCE", font=("Helvetica", 40), fg="white", bg="#CC0000").pack()
-        self.red_score_var = tk.StringVar(value="0")
-        self.red_label = tk.Label(self.red_frame, textvariable=self.red_score_var, font=("Helvetica", 150, "bold"), fg="white", bg="#CC0000")
-        self.red_label.pack()
+                # Main Display Line: "RED  142 / 360  [●]"
+                print(f"\n {alliance.upper():5} ALLIANCE:  {fuel:3} / {target:3}   {rp_icon}")
+                
+                # Strategy Note: Display Zero-Value Scores for coaching
+                zv = data['zero_value'].get(alliance, 0)
+                if zv > 0:
+                    print(f"   (Zero-Value Scores: {zv})")
 
-        # BLUE ALLIANCE DISPLAY
-        self.blue_frame = tk.Frame(self.score_frame, bg="#0000CC", bd=10)
-        self.blue_frame.pack(side="right", expand=True, fill="both", padx=20, pady=20)
-        tk.Label(self.blue_frame, text="BLUE ALLIANCE", font=("Helvetica", 40), fg="white", bg="#0000CC").pack()
-        self.blue_score_var = tk.StringVar(value="0")
-        self.blue_label = tk.Label(self.blue_frame, textvariable=self.blue_score_var, font=("Helvetica", 150, "bold"), fg="white", bg="#0000CC")
-        self.blue_label.pack()
-
-        self.root.bind("<Escape>", lambda e: self.root.attributes("-fullscreen", False))
-
-    def toggle_field_mode(self):
-        """Cycles through RED, BLUE, and FULL practice modes."""
-        modes = ["FULL", "RED", "BLUE"]
-        current = modes.index(self.mode_var.get())
-        next_mode = modes[(current + 1) % len(modes)]
-        self.mode_var.set(next_mode)
+            print("\n" + "="*60)
+            
+        except Exception:
+            # If the Master is currently writing to the file, we just skip one frame
+            pass
         
-        # Visually dim the inactive side
-        if next_mode == "RED":
-            self.blue_frame.config(bg="#111"); self.blue_label.config(bg="#111", fg="#333")
-            self.red_frame.config(bg="#CC0000"); self.red_label.config(bg="#CC0000", fg="white")
-        elif next_mode == "BLUE":
-            self.red_frame.config(bg="#111"); self.red_label.config(bg="#111", fg="#333")
-            self.blue_frame.config(bg="#0000CC"); self.blue_label.config(bg="#0000CC", fg="white")
-        else:
-            self.red_frame.config(bg="#CC0000"); self.red_label.config(bg="#CC0000", fg="white")
-            self.blue_frame.config(bg="#0000CC"); self.blue_label.config(bg="#0000CC", fg="white")
+        time.sleep(0.25) # 4Hz refresh rate is ideal for human readability
 
-    def update_display(self, time_left, state, r_score, b_score):
-        self.timer_label.config(text=self.format_time(time_left))
-        self.state_label.config(text=state)
-        self.red_score_var.set(str(r_score))
-        self.blue_score_var.set(str(b_score))
-
-        if state == "AUTO": self.timer_label.config(fg="lime")
-        elif state == "TELEOP": self.timer_label.config(fg="yellow")
-        elif state == "ENDGAME": self.timer_label.config(fg="orange")
-
-        self.root.update()
-
-    def format_time(self, seconds):
-        return f"{int(seconds // 60):02d}:{int(seconds % 60):02d}"
-
-    def run(self):
-        self.root.mainloop()
+if __name__ == "__main__":
+    try:
+        render_fms_ui()
+    except KeyboardInterrupt:
+        print("\nUI Display Terminated.")
