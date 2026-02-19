@@ -89,3 +89,22 @@ if os.path.exists(config_path):
                 if "BLUE" in MY_ROLE: ALLIANCE_COLOR = "blue"
 else:
     print(f"[CONFIG] Warning: {config_path} not found. Operating in fallback mode.")
+
+
+# --- 4. AGITATOR & MECHANICAL TUNING (Node 2 & 3) ---
+# Students: These settings control the gravity-assist rollers in the Hubs.
+# Adjust these to prevent Fuel jams without burning out the brushed motors.
+
+ROLLER_SPEED_FWD = 0.6        # Standard forward clearing speed (0.0 to 1.0)
+LEAD_TIME = 10                # Seconds to start spinning BEFORE a period
+TRAIL_TIME = 5                # Seconds to keep spinning AFTER a period
+
+# ACTIVE JOSTLE (High-frequency clearing during scoring windows)
+ACTIVE_JOSTLE_INTERVAL = 7    # Seconds between kicks
+ACTIVE_JOSTLE_DURATION = 1.5  # Length of the reverse kick
+ACTIVE_JOSTLE_SPEED = -0.7    # Power of the reverse kick
+
+# INACTIVE JOSTLE (Maintenance pulses to prevent settling)
+INACTIVE_JOSTLE_INTERVAL = 5   
+INACTIVE_JOSTLE_DURATION = 1.0
+INACTIVE_JOSTLE_SPEED = -0.4  
